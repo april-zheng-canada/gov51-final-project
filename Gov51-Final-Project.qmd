@@ -1,8 +1,233 @@
 ---
 title: "Gov 51 Final Project"
 author: "April Zheng"
+date: "May 12, 2026"
 format: pdf
 editor: visual
 ---
 
-## 
+Github Repository: <https://github.com/april-zheng-canada/gov51-final-project>
+
+## Introduction
+
+For more than 50 years, Americans of all political ideologies have placed high trust in science to identify and help address pressing societal challenges (Milkoreit and Smith, 2024). This trust in science, particularly its rigorous and state-independent institutions, has been largely resistant against single events and misinformation. However, since the 1990s, amidst global health, climate, and security crises, different fields of science have become increasingly scrutinized under public media, and politicized. As political views have steadily diverged since the 1990s, and much more drastically since 2018, so has politically-motivated trust in science.
+
+The motivating paper for this research project Milkoreit and Smith 2024 investigated how trust in science by political orientation has evolved from 1972 to 2022. The researchers tracked trust in institutions of science through longitudinal, cross-sectional survey data from the General Social Survey, and data from the Pew Research Center's American Trends Panel to track confidence across different social groups from scientists to elected officials. This research project aims to expand on this work by investigating trust in science through social media forums. Surveys are often limited by non-sampling errors such as social desirability bias where survey respondents tend to respond to conform to social expectations. Due to the anonymous nature and spatial distance provided to users on social media platforms, users are more likely to express themselves and pursue self-related goals that are otherwise more difficult or costly to pursue when identifiable (Nitshinsk et al. 2023). This research project will look specifically investigate comments on Reddit which, unlike most many other social media platforms like Instagram or Youtube, is organized by topic-based communities or subreddits in which users can participate in relevant discussions. Focusing on one politics and one science subreddit, I will use TinyLlama, an open-source language model, to categorize the comments based on its trust in science as "trusting" or "non-trusting", and its political orientation as "liberal", "neutral", or "conservative" to investigate how trust in science across political orientations has evolved. I will be investigate comments between 2006 and 2024 during which politicization of science drastically increased due to widely politicized events such as the COVID-19 pandemic.
+
+The research question is therefore: Focusing on Reddit posts filtered from subreddits “Moderatepolitics” and “Science”, how has trust towards science measured using ChatGPT-2 evolved between 2006 to 2024?
+
+\[**STATE descriptive, intention, findings\]**
+
+## Data Collection
+
+### I. Raw Data Collection
+
+Originally, I planned to scrape my own data from Reddit using a Reddit Data API; however, my request was reviewed and rejected. Instead of manually compiling the data from subreddits, I used pre-compiled data by Reddit user Watchful1 from r/pushshift who organized and uploaded the data of comments and submissions of the top forty thousand subreddits between 2006 and 2024 as a torrent. Torrent is a a method of sharing large data files through a peer-to-peer network, decentralizing the load of distributing that the file. Torrent files do not contain the actual content, but rather compile "links" which a torrent client can read and download files from other users within the peer-to-peer network who have downloaded it. While sharing large data files normally would have required a single, high-bandwidth server, torrents allow that bandwidth required to be greatly reduced due to its decentralized load-bearing system.
+
+Using an open-source qBittorent client, I downloaded the pre-compiled data of all the comments from 2006 to 2024 from two subreddits: "Science" and "Moderatepolitics". These files were saved as zStandard files (.zst), a super-compressed data file. Originally, the data from each subreddit consisted of two files: one for comments, and one for submissions (also known as Reddit posts). However, I chose to focus this project on the comments because they provide greater insight into the quality of science-related discussions happening between users whereas submissions represented solely the original posters' point of view. \[**FINISH**\] Additionally, I chose a single political subreddit, specifically moderate politics, to effectively monitor the evolution of political-leaning, and trust towards science in a single subreddit. Reddit is a predominantly left-leaning social media platform; as such, I would obtain even more skewed data if I were to directly compare between left-leaning and right-leaning subreddits because they would differ by number of comments and submissions. Additionally, I cannot download and process all political subreddits because of the sheer number - there are many duplicate or similar subreddits.
+
+However, I do acknowledge an inherent limitation to my data collection methodology given the constantly-evolving population of active redditors in each subreddit as people may leave reddit to express opinions on other social media platforms. This study which exclusively analyzes data from Reddit cannot capture the full picture of the true evolution of trust towards science.
+
+### II. Data Processing
+
+The two raw data files of the pre-compiled comments of each subreddit are named "Moderatepolitics_comments.zst" and "Science_comments.zst" with 2180181 data entries, and 33005 data entries, respectively. Next, I wrote a python script named "filter_file.py" in my Github repository to filter the comments for comments with science-related terms "science", "covid", "vaccine", "virus", "pandemic", "coronavirus", "sars cov 2", "climate", "carbon". All matching entries are filtered out with key details like the date, author, URL, and the content of science-related comments, and stored in as csv files: moderatepolitics_comments.csv and science_comments.csv.
+
+In the python script, I used TinyLlama, a small open-source AI language model to read each Reddit comment and return a JSON label. I designed and fed a prompt to the model to classify each filtered comment based on the degree of trust ("trusting", "non-trusting") and based on political leaning ("liberal", "conservative", or "neutral").
+
+| Classification Label | Label Definition |
+|------------------------------------|------------------------------------|
+| Trusting | Explicit confidence, support, approval, or positive acceptance of science, evidence, experts, institutions, or findings |
+| Non-Trusting | Explicit distrust, rejection, conspiracy framing, accusations of deception, or strong skepticism toward science, evidence, experts, institutions or findings |
+| Liberal | Author expresses progressive, left-leaning views. |
+| Conservative | Author expresses traditionalist, right-leaning views. |
+| Neutral | Author does not clearly lean liberal or conservative. |
+
+I added additional rules in the system prompt. If the comment is merely descriptive, off-topic, joking, or ambiguous, to label the comment as "trusting" unless there is clear language of distrust. This will avoid categorizing comments based on their tone being uncertain, critical or sarcastic of science which does not necessarily provide evidence of the users' trust towards science. These analyzed comments are saved under as new csv files: moderatepolitics_comments_analyzed.csv and science_comments_analyzed.csv. My analysis of the evolution of trust in science will be based off of these processed csv files.
+
+## Analysis
+
+Firstly, I will load the filtered and analyzed csv files for both subreddits.
+
+```{r}
+library(tidyverse)
+library(glmnet)
+library(knitr)
+library(patchwork)
+
+modpolitics <- read.csv("code/analysis_results/moderatepolitics_comments_analyzed.csv")
+
+science <- read.csv("code/analysis_results/science_comments_analyzed.csv")
+
+```
+
+```{r}
+
+view(science)
+view(modpolitics)
+
+```
+
+I will by calculating a few statistics to see what the distribution of trust in science looks like, and political affiliation.
+
+```{r}
+
+(stats_table <- data.frame(
+  Dataset = c("Moderate Politics", "Science"), 
+  N = c(nrow(modpolitics),
+        nrow(science)), 
+  Liberal = c(sum(modpolitics$leaning == "liberal"),
+              sum(science$leaning == "liberal")),
+  Trusting = c(sum(modpolitics$trust == "trusting"),
+              sum(science$trust == "trusting")), 
+  Positive_Upvote = c(sum(modpolitics$score[modpolitics$trust == "trusting"] >1), 
+            sum(science$score[science$trust == "trusting"] >1))
+))
+
+knitr::kable(stats_table, caption = "Overview of Filtered and Analyzed csv Files")
+
+
+```
+
+From above, the Moderate Politics file has 10900 science-related comments filtered and analyzed by TinyLlama, and the Science file has 109545 comments filtered and analyzed. Of the 10900 comments in the Moderate Politics file, 10017 or 91.8% were liberal, and 4500 or 41.2% were trusting in science. Of the 4500 comments classified as trusting in science, 2971 or 66% had an upvote count greater than 1, which is the default when you comment (you automatically upvote your own comment).
+
+On the other hand, of the 109545 selected comments in the Science file, 97499 or 89.0% were liberal, and 55675 or 50.8% were trusting in science. Of the 55675 comments classified as trusting in science, 24837 or 44.6% had an upvote count greater than 1.
+
+Next, we look at how trust in science has evolved across the three political affiliations. First, I will graph the changing proportion of trusting, science-related comments to the total number of comments by year. Using the raw number of science-related comments is misleading as it may conflate the population changes in a subreddit with changes in trust in science.
+
+```{r fig.width = 6, fig.height = 3}
+
+combined_prop <- bind_rows(science |> mutate(subreddit = "Science"), modpolitics |> mutate(subreddit = "Moderate Politics")) |>
+  mutate(date = as.Date(date)) |>
+  filter(date >= as.Date("2011-06-01")) |>
+  group_by(subreddit, date) |>
+  summarise(
+    daily_trust = sum(trust == "trusting"),
+    daily_total = n()
+  ) |>
+  arrange(date) |>
+  mutate(
+    cumul_trust = cumsum(daily_trust),
+    cumul_total = cumsum(daily_total),
+    trust_proportion = cumul_trust / cumul_total 
+  )
+
+combined_plot <- ggplot(combined_prop, aes(x = date, y = trust_proportion, color = subreddit)) + 
+  geom_line() + 
+  scale_x_date(date_breaks = "1 year", date_labels = "%y") +
+  labs(title = "Proportion of Trusting Comments Over Time",
+       x = "Year (20XX)",
+       y = "Proportion of Trusting Comments",
+       color = "Subreddit")
+
+combined_plot
+```
+
+```{r}
+ggsave("output/combined_plot.png", plot = combined_plot,
+       width = 7, height = 4)
+```
+
+These subreddits have comments tracing back to different years; the Science subreddit is older with comments dating to 2006, while the moderate politics subreddit is relatively newer with its oldest filtered comment dating to 2011. To allow for easier side by side comparison, I filtered for comments whose date is newer than 2011 June.
+
+From the above graph, it is clear that there is a greater proportion of trusting comments in the Science subreddit (around 0.5) than in the Moderate Politics subreddit (0.4). Additionally, within the Science subreddit, there is relatively little fluctuation in the proportion of trusting comments other than a slight sustained dip from 2014 to 2022 from slightly above 0.5 to below 0.5. Within the Moderate Politics subreddit, there is relative more fluctuation with the proportion of trusting comments rising and peaking at around 0.5 in 2017 before sharply dropping to 0.35 in 2019, and reaching 0.4 again in 2020.
+
+```{r fig.width = 8, fig.height = 3}
+
+combined_leaning <- bind_rows(
+  science |> mutate(subreddit = "Science"), 
+  modpolitics |> mutate(subreddit = "Moderate Politics")
+) |>
+  mutate(date = as.Date(date)) |>
+  filter(date >= as.Date("2011-01-01")) |>
+  group_by(subreddit, leaning, date) |>
+  summarise(
+    daily_trust = sum(trust == "trusting"),
+    daily_total = n()
+  ) |>
+  arrange(subreddit, leaning, date) |>
+  group_by(subreddit, leaning) |>
+  mutate(
+    cumul_trust = cumsum(daily_trust),
+    cumul_total = cumsum(daily_total),
+    trust_proportion = cumul_trust / cumul_total
+  )
+
+leaning_plot <- ggplot(combined_leaning, aes(x = date, y = trust_proportion, color = leaning)) +
+  geom_line() +
+  facet_wrap(~subreddit) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%y") +
+  labs(title = "Proportion of Trusting Comments by Political Leaning",
+       x = "Year (20XX)",
+       y = "Proportion of Trusting Comments",
+       color = "Leaning")
+
+leaning_plot
+
+```
+
+```{r}
+ggsave("output/leaning_plot.png", plot = leaning_plot,
+       width = 8, height = 3)
+```
+
+From the above graph, we notice that across both subreddits liberal comments (coded in green) are the most trusting in science, consistently sitting around 0.4-0.6 in proportion. Conservative comments (in red) are close to flat around 0, meaning very few trusting comments at all. Neutral comments see greater fluctuations, though only since 2019 for Moderate Politics. Neutral comments are seen as more stable around 0.1-0.2 for Science subreddit.
+
+```{r fig.width = 6, fig.height= 3}
+
+high_score_prop <- bind_rows(
+  science |> mutate(subreddit = "Science"), 
+  modpolitics |> mutate(subreddit = "Moderate Politics")
+) |>
+  mutate(date = as.Date(date),
+         score = as.numeric(score)) |>
+  filter(date >= as.Date("2011-01-01"),
+         score > 1) |>
+  group_by(subreddit, date) |>
+  summarise(
+    daily_trust = sum(trust == "trusting"),
+    daily_total = n()
+  ) |>
+  arrange(subreddit, date) |>
+  group_by(subreddit) |>
+  mutate(
+    cumul_trust = cumsum(daily_trust),
+    cumul_total = cumsum(daily_total),
+    trust_proportion = cumul_trust / cumul_total
+  )
+
+high_score_plot <- ggplot(high_score_prop, aes(x = date, y = trust_proportion, color = subreddit)) +
+  geom_line() +
+  scale_x_date(date_breaks = "1 year", date_labels = "%y") +
+  labs(title = "Proportion of Trusting Comments (Score > 1) Over Time",
+       subtitle = "Filtered to comments with more than 1 upvote",
+       x = "Year (20XX)",
+       y = "Proportion of \n Trusting Comments",
+       color = "Subreddit")
+
+high_score_plot
+```
+
+```{r}
+ggsave("output/high_score_plot.png", plot = high_score_plot,
+       width = 8, height = 3.5)
+```
+
+```{r}
+model <- glm(trust == "trusting" ~ leaning + subreddit + score + date, 
+             data = bind_rows(
+               science |> mutate(subreddit = "Science"),
+               modpolitics |> mutate(subreddit = "Moderate Politics")
+             ) |>
+               mutate(date = as.Date(date),
+                      score = as.numeric(score)),
+             family = binomial)
+
+summary(model)
+
+```
+
+I performed a logistic regression above to determine the statistical significance of variables such as the subreddit, the date, the upvote score, etc. I ran a logistic regression beccause the outcome variable trust is binary; a regular linear regression assumes the outcome is continuous so it is not appropriate to be used in this context. Summarizing the logistic regression, variables subreddit and date were found to have a p value \< 0.05, indicating statistical significance. Specifically, this means that science subreddit comments are significantly more likely to be trusting than Moderate Politics, with a positive coefficient of 0.59 (in log units). Exponentiating this coefficient, we get 1.80, meaning that comments from the science subreddit are 1.8 times more likely to be trusting than comments found in Moderate Politics, holding all else constant.
+
+Additionally, trust in science is increasing over time, though with a positive but extremely small coefficient of 8.097e-05 (in log units of trust for each additional day). Exponentiating the coefficient and converting this a yearly unit: exp(8.097e-05 \* 365) = 1.030 meaning that ratio of trusting to non-trusting comments gets 3% higher each year, holding all else constant.
+
+## Conclusion
